@@ -3,7 +3,7 @@ import { config } from "./config";
 import { commands } from "./commands";
 import { deployCommands } from "./deploy-commands";
 import { startMonitoring } from "./services/monitor";
-import { updateSiteInfo } from "./services/storage";
+import { updateSiteInfo, addSite } from "./services/storage";
 import { updateSetupMessage } from "./services/setup-message";
 
 export const client = new Client({
@@ -49,11 +49,57 @@ client.on("interactionCreate", async (interaction) => {
 
   // Soumission de Modal
   if (interaction.isModalSubmit()) {
+    const { guildId } = interaction;
+    if (!guildId) return;
+
+    // --- FORMULAIRE REGISTER ---
+    if (interaction.customId === "register_modal") {
+      const alias = interaction.fields.getTextInputValue("alias");
+      let url = interaction.fields.getTextInputValue("url");
+      let testUrl = interaction.fields.getTextInputValue("test_url");
+      const secret = interaction.fields.getTextInputValue("secret");
+      const uptimeStr = interaction.fields.getTextInputValue("uptime") || "5";
+      const uptime = parseInt(uptimeStr, 10);
+
+      if (isNaN(uptime) || uptime < 1) {
+        return interaction.reply({ content: "❌ L'intervalle doit être un nombre positif.", ephemeral: true });
+      }
+
+      url = normalizeUrl(url);
+      if (testUrl) testUrl = normalizeUrl(testUrl);
+
+      try {
+        new URL(url);
+        if (testUrl) new URL(testUrl);
+      } catch {
+        return interaction.reply({ content: "❌ URL invalide.", ephemeral: true });
+      }
+
+      try {
+        await interaction.deferReply({ ephemeral: true });
+        
+        await addSite({
+          alias,
+          url,
+          testUrl: testUrl || undefined,
+          secret: secret || undefined,
+          guildId,
+          uptimeInterval: uptime,
+          status: undefined
+        });
+
+        await interaction.editReply({
+          content: `✅ Site **${alias}** enregistré avec succès !\n**URL:** ${url}${testUrl ? `\n**Monitoring:** ${testUrl}` : ""}\n**Intervalle:** ${uptime}m`
+        });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Erreur interne";
+        await interaction.editReply({ content: `❌ ${msg}` });
+      }
+    }
+
+    // --- FORMULAIRE EDIT ---
     if (interaction.customId.startsWith("edit_modal_")) {
       const originalAlias = interaction.customId.replace("edit_modal_", "");
-      const { guildId } = interaction;
-      if (!guildId) return;
-
       const newAlias = interaction.fields.getTextInputValue("new_alias");
       let testUrl = interaction.fields.getTextInputValue("test_url");
       const secret = interaction.fields.getTextInputValue("secret");
@@ -64,7 +110,6 @@ client.on("interactionCreate", async (interaction) => {
         return interaction.reply({ content: "❌ L'intervalle doit être un nombre positif.", ephemeral: true });
       }
 
-      // Normalisation de l'URL
       testUrl = normalizeUrl(testUrl);
 
       try {
@@ -87,7 +132,6 @@ client.on("interactionCreate", async (interaction) => {
           return interaction.editReply({ content: "❌ Impossible de modifier le site." });
         }
 
-        // On utilise explicitement la nouvelle valeur de l'alias
         await updateSetupMessage(client, newAlias, false, guildId);
 
         await interaction.editReply({

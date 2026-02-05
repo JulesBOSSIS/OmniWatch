@@ -19,12 +19,12 @@ export interface Site {
 
 export async function loadSites(guildId?: string): Promise<Site[]> {
   try {
-    const query = guildId 
+    const query = guildId
       ? db.select().from(sites).where(eq(sites.guildId, guildId))
       : db.select().from(sites);
-    
+
     const result = await query;
-    
+
     return result.map((site) => ({
       alias: site.alias,
       url: site.url,
@@ -35,7 +35,9 @@ export async function loadSites(guildId?: string): Promise<Site[]> {
       consecutiveFailures: site.consecutiveFailures ?? 0,
       lastCheck: site.lastCheck ? new Date(site.lastCheck) : undefined,
       status: site.status as "up" | "down" | undefined,
-      lastStatusChange: site.lastStatusChange ? new Date(site.lastStatusChange) : undefined,
+      lastStatusChange: site.lastStatusChange
+        ? new Date(site.lastStatusChange)
+        : undefined,
       setupMessageId: site.setupMessageId ?? undefined,
       setupChannelId: site.setupChannelId ?? undefined,
     }));
@@ -45,7 +47,9 @@ export async function loadSites(guildId?: string): Promise<Site[]> {
   }
 }
 
-export async function addSite(site: Omit<Site, "consecutiveFailures">): Promise<void> {
+export async function addSite(
+  site: Omit<Site, "consecutiveFailures">
+): Promise<void> {
   try {
     await db.insert(sites).values({
       alias: site.alias,
@@ -63,18 +67,25 @@ export async function addSite(site: Omit<Site, "consecutiveFailures">): Promise<
     });
   } catch (error: unknown) {
     if ((error as { code?: string })?.code === "23505") {
-      throw new Error(`L'alias "${site.alias}" est déjà utilisé sur ce serveur.`);
+      throw new Error(
+        `L'alias "${site.alias}" est déjà utilisé sur ce serveur.`
+      );
     }
     throw error;
   }
 }
 
-export async function removeSite(alias: string, guildId: string): Promise<boolean> {
+export async function removeSite(
+  alias: string,
+  guildId: string
+): Promise<boolean> {
   try {
     const existingSite = await getSite(alias, guildId);
     if (!existingSite) return false;
 
-    await db.delete(sites).where(and(eq(sites.alias, alias), eq(sites.guildId, guildId)));
+    await db
+      .delete(sites)
+      .where(and(eq(sites.alias, alias), eq(sites.guildId, guildId)));
     return true;
   } catch (error) {
     console.error("[Storage] Delete failed:", error);
@@ -82,7 +93,10 @@ export async function removeSite(alias: string, guildId: string): Promise<boolea
   }
 }
 
-export async function getSite(alias: string, guildId: string): Promise<Site | undefined> {
+export async function getSite(
+  alias: string,
+  guildId: string
+): Promise<Site | undefined> {
   try {
     const [site] = await db
       .select()
@@ -102,7 +116,9 @@ export async function getSite(alias: string, guildId: string): Promise<Site | un
       consecutiveFailures: site.consecutiveFailures ?? 0,
       lastCheck: site.lastCheck ? new Date(site.lastCheck) : undefined,
       status: site.status as "up" | "down" | undefined,
-      lastStatusChange: site.lastStatusChange ? new Date(site.lastStatusChange) : undefined,
+      lastStatusChange: site.lastStatusChange
+        ? new Date(site.lastStatusChange)
+        : undefined,
       setupMessageId: site.setupMessageId ?? undefined,
       setupChannelId: site.setupChannelId ?? undefined,
     };
@@ -122,10 +138,15 @@ export async function updateSiteStatus(
     if (!guildId) {
       const allSites = await loadSites();
       const targets = allSites.filter((s) => s.alias === alias);
-      
+
       for (const site of targets) {
         const now = new Date();
-        const updateData: { status: "up" | "down"; lastCheck: Date; lastStatusChange?: Date; consecutiveFailures?: number } = {
+        const updateData: {
+          status: "up" | "down";
+          lastCheck: Date;
+          lastStatusChange?: Date;
+          consecutiveFailures?: number;
+        } = {
           status,
           lastCheck: now,
         };
@@ -138,7 +159,8 @@ export async function updateSiteStatus(
           updateData.lastStatusChange = now;
         }
 
-        await db.update(sites)
+        await db
+          .update(sites)
           .set(updateData)
           .where(and(eq(sites.alias, alias), eq(sites.guildId, site.guildId)));
       }
@@ -149,7 +171,12 @@ export async function updateSiteStatus(
     if (!site) return;
 
     const now = new Date();
-    const updateData: { status: "up" | "down"; lastCheck: Date; lastStatusChange?: Date; consecutiveFailures?: number } = {
+    const updateData: {
+      status: "up" | "down";
+      lastCheck: Date;
+      lastStatusChange?: Date;
+      consecutiveFailures?: number;
+    } = {
       status,
       lastCheck: now,
     };
@@ -162,7 +189,10 @@ export async function updateSiteStatus(
       updateData.lastStatusChange = now;
     }
 
-    await db.update(sites).set(updateData).where(and(eq(sites.alias, alias), eq(sites.guildId, guildId)));
+    await db
+      .update(sites)
+      .set(updateData)
+      .where(and(eq(sites.alias, alias), eq(sites.guildId, guildId)));
   } catch (error) {
     console.error("[Storage] Status update failed:", error);
   }
@@ -178,7 +208,8 @@ export async function setSetupMessage(
     const existing = await getSite(alias, guildId);
     if (!existing) return false;
 
-    await db.update(sites)
+    await db
+      .update(sites)
       .set({ setupMessageId: messageId, setupChannelId: channelId })
       .where(and(eq(sites.alias, alias), eq(sites.guildId, guildId)));
     return true;
@@ -191,7 +222,12 @@ export async function setSetupMessage(
 export async function updateSiteInfo(
   currentAlias: string,
   guildId: string,
-  updates: { newAlias?: string; testUrl?: string; uptimeInterval?: number; secret?: string }
+  updates: {
+    newAlias?: string;
+    testUrl?: string;
+    uptimeInterval?: number;
+    secret?: string;
+  }
 ): Promise<boolean> {
   try {
     const site = await getSite(currentAlias, guildId);
@@ -203,22 +239,31 @@ export async function updateSiteInfo(
       }
     }
 
-    const updateData: { alias?: string; testUrl?: string; uptimeInterval?: number; secret?: string } = {};
+    const updateData: {
+      alias?: string;
+      testUrl?: string;
+      uptimeInterval?: number;
+      secret?: string;
+    } = {};
     if (updates.newAlias) updateData.alias = updates.newAlias;
     if (updates.testUrl !== undefined) updateData.testUrl = updates.testUrl;
-    if (updates.uptimeInterval !== undefined) updateData.uptimeInterval = updates.uptimeInterval;
+    if (updates.uptimeInterval !== undefined)
+      updateData.uptimeInterval = updates.uptimeInterval;
     if (updates.secret !== undefined) updateData.secret = updates.secret;
 
     if (Object.keys(updateData).length === 0) return true;
 
-    await db.update(sites)
+    await db
+      .update(sites)
       .set(updateData)
       .where(and(eq(sites.alias, currentAlias), eq(sites.guildId, guildId)));
-    
+
     return true;
   } catch (error) {
-    if (error instanceof Error && error.message.includes("déjà pris")) throw error;
+    if (error instanceof Error && error.message.includes("déjà pris"))
+      throw error;
     console.error("[Storage] Info update failed:", error);
     throw new Error("Impossible de mettre à jour le site.");
   }
 }
+
