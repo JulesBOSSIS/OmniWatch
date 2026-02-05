@@ -12,35 +12,48 @@ import { startMonitoring } from "./services/monitor";
 import { updateSiteUptime, getSite } from "./services/storage";
 import { updateSetupMessage } from "./services/setup-message";
 
-// Make sure to install the 'pg' package 
-import { drizzle } from 'drizzle-orm/node-postgres';
+// On importe la connexion à la base de données pour s'assurer qu'elle est initialisée
+import { db } from './db';
 
-const db = drizzle(process.env.DATABASE_URL);
-
+/**
+ * Client Discord principal
+ * Configure les intents nécessaires pour que le bot fonctionne
+ */
 export const client = new Client({
   intents: ["Guilds", "GuildMessages", "DirectMessages"],
 });
 
+/**
+ * Événement déclenché quand le bot est prêt et connecté à Discord
+ */
 client.once("ready", async () => {
   console.log("Discord bot is ready! 🤖");
 
-  // Déployer les commandes pour tous les serveurs où le bot est présent
+  // On déploie les commandes slash pour tous les serveurs où le bot est présent
   const guilds = await client.guilds.fetch();
   for (const guild of guilds.values()) {
     await deployCommands({ guildId: guild.id });
   }
 
-  // Démarrer le monitoring des sites
+  // On démarre le monitoring des sites
+  // Le bot vérifiera toutes les minutes si des sites doivent être vérifiés
   console.log("Starting website monitoring...");
   startMonitoring(client, 1); // Vérifier toutes les minutes
 });
 
+/**
+ * Événement déclenché quand le bot rejoint un nouveau serveur
+ * On déploie les commandes pour ce serveur
+ */
 client.on("guildCreate", async (guild) => {
   await deployCommands({ guildId: guild.id });
 });
 
+/**
+ * Événement déclenché quand une interaction est créée (commande slash ou bouton)
+ */
 client.on("interactionCreate", async (interaction) => {
-  // Gérer les commandes slash
+  // Gestion des commandes slash (ex: /ping, /register, etc.)
   if (interaction.isChatInputCommand()) {
     const { commandName } = interaction;
     const command = commands[commandName as keyof typeof commands];
@@ -48,7 +61,8 @@ client.on("interactionCreate", async (interaction) => {
       try {
         await command.execute(interaction);
       } catch (error) {
-        console.error(`Error executing command ${commandName}:`, error);
+        console.error(`Erreur lors de l'exécution de la commande ${commandName}:`, error);
+        // On affiche un message d'erreur à l'utilisateur
         if (interaction.replied || interaction.deferred) {
           await interaction.followUp({
             content: "Une erreur s'est produite lors de l'exécution de cette commande.",
@@ -65,29 +79,40 @@ client.on("interactionCreate", async (interaction) => {
     return;
   }
 
-  // Gérer les interactions de boutons pour l'uptime
+  // Gestion des interactions de boutons (pour changer l'intervalle de vérification)
   if (interaction.isButton()) {
     const customId = interaction.customId;
 
+    // On vérifie si c'est un bouton pour changer l'uptime (format: uptime_<alias>_<interval>)
     if (customId.startsWith("uptime_")) {
+      if (!interaction.guildId) {
+        return interaction.reply({
+          content: "❌ Cette interaction ne peut être utilisée que dans un serveur.",
+          ephemeral: true,
+        });
+      }
+
+      // On parse le customId pour récupérer l'alias et l'intervalle
       const parts = customId.split("_");
       if (parts.length === 3) {
         const alias = parts[1];
         const uptimeInterval = parseInt(parts[2], 10);
 
-        const site = getSite(alias);
+        // On vérifie que le site existe
+        const site = await getSite(alias, interaction.guildId);
 
         if (!site) {
           return interaction.reply({
-            content: `❌ Site **${alias}** introuvable.`,
+            content: `❌ Site **${alias}** introuvable dans ce serveur.`,
             ephemeral: true,
           });
         }
 
-        const updated = updateSiteUptime(alias, uptimeInterval);
+        // On met à jour l'intervalle dans la base de données
+        const updated = await updateSiteUptime(alias, uptimeInterval, interaction.guildId);
 
         if (updated) {
-          // Mettre à jour les boutons pour refléter le nouveau statut
+          // On recrée les boutons avec le nouvel intervalle sélectionné en vert
           const intervals = [1, 5, 10, 15, 30, 60, 120, 1440];
 
           const buttons: ButtonBuilder[] = intervals.map((interval) => {
@@ -104,11 +129,12 @@ client.on("interactionCreate", async (interaction) => {
               .setLabel(label)
               .setStyle(
                 uptimeInterval === interval
-                  ? ButtonStyle.Success
+                  ? ButtonStyle.Success // Le bouton de l'intervalle actuel est en vert
                   : ButtonStyle.Secondary
               );
           });
 
+          // On divise en lignes (max 5 boutons par ligne)
           const rows: ActionRowBuilder<ButtonBuilder>[] = [];
           for (let i = 0; i < buttons.length; i += 5) {
             const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -117,7 +143,8 @@ client.on("interactionCreate", async (interaction) => {
             rows.push(row);
           }
 
-          const updatedSite = getSite(alias);
+          // On récupère le site mis à jour pour afficher les bonnes infos
+          const updatedSite = await getSite(alias, interaction.guildId);
           if (!updatedSite) {
             return interaction.reply({
               content: "❌ Erreur lors de la récupération du site.",
@@ -125,6 +152,7 @@ client.on("interactionCreate", async (interaction) => {
             });
           }
 
+          // On crée l'embed mis à jour
           const embed = new EmbedBuilder()
             .setTitle(`⚙️ Configuration de l'uptime - ${updatedSite.alias}`)
             .setDescription(
@@ -152,14 +180,16 @@ client.on("interactionCreate", async (interaction) => {
             inline: true,
           });
 
+          // On met à jour le message avec le nouvel embed et les nouveaux boutons
           await interaction.update({
             embeds: [embed],
             components: rows,
           });
 
-          // Mettre à jour le message de setup pour refléter les changements
-          await updateSetupMessage(client, alias);
+          // On met à jour aussi le message de setup pour refléter les changements
+          await updateSetupMessage(client, alias, false, interaction.guildId);
 
+          // On confirme à l'utilisateur que la mise à jour a réussi
           await interaction.followUp({
             content: `✅ Intervalle de vérification mis à jour à **${uptimeInterval} minute(s)** pour **${alias}**.`,
             ephemeral: true,
@@ -175,4 +205,5 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
+// On connecte le bot à Discord avec le token
 client.login(config.DISCORD_TOKEN);

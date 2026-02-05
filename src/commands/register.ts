@@ -1,6 +1,10 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
 import { addSite } from "../services/storage";
 
+/**
+ * Commande pour enregistrer un nouveau site à surveiller
+ * Le bot va vérifier régulièrement si le site est en ligne ou pas
+ */
 export const data = new SlashCommandBuilder()
   .setName("register")
   .setDescription("Enregistre un site web à surveiller")
@@ -21,15 +25,23 @@ export const data = new SlashCommandBuilder()
       .setName("uptime")
       .setDescription("Intervalle de vérification en minutes (défaut: 5)")
       .setMinValue(1)
-      .setMaxValue(1440)
+      .setMaxValue(1440) // Max 24h
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  // On vérifie qu'on est bien dans un serveur (pas en MP)
+  if (!interaction.guildId) {
+    return interaction.reply({
+      content: "❌ Cette commande ne peut être utilisée que dans un serveur.",
+      ephemeral: true,
+    });
+  }
+
   const url = interaction.options.getString("url", true);
   const alias = interaction.options.getString("alias", true);
   const uptimeInterval = interaction.options.getInteger("uptime") ?? 5;
 
-  // Valider l'URL
+  // On vérifie que l'URL est valide avant de l'enregistrer
   try {
     new URL(url);
   } catch {
@@ -40,9 +52,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   try {
-    addSite({
+    // On sauvegarde le site dans la base de données
+    await addSite({
       alias,
       url,
+      guildId: interaction.guildId,
       uptimeInterval,
     });
 
@@ -51,6 +65,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       ephemeral: true,
     });
   } catch (error) {
+    // Si l'alias existe déjà, on affiche un message d'erreur clair
     if (error instanceof Error) {
       return interaction.reply({
         content: `❌ Erreur: ${error.message}`,
