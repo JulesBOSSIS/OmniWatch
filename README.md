@@ -11,3 +11,9 @@
 ### Consignes 
 - Doit être fait en TS
 - stack -> libre
+
+### Setup
+- npm i
+- remettre le .env
+- docker compose up -d
+- npx drizzle-kit push

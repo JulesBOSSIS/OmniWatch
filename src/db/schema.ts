@@ -1,5 +1,5 @@
 import { date } from "drizzle-orm/mysql-core";
-import { integer, pgTable, varchar } from "drizzle-orm/pg-core";
+import { integer, pgTable, varchar, timestamp } from "drizzle-orm/pg-core";
 
 export const sites = pgTable("sites", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
@@ -15,8 +15,8 @@ export const message = pgTable("messages", {
     id: integer().primaryKey(),
     channelId: varchar().notNull(),
     status: varchar(),
-    lastCheck: date(),
-    lastStatusChange: date(),
+    lastCheck: timestamp("last_check").notNull().defaultNow(),
+    lastStatusChange: timestamp("last_status_change").notNull().defaultNow(),
     uptimeInterval: integer(),
 });
 
