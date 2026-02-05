@@ -1,5 +1,6 @@
 import { loadSites, updateSiteStatus, Site } from "./storage";
 import { Client } from "discord.js";
+import { updateSetupMessage } from "./setup-message";
 
 export async function checkSite(site: Site): Promise<"up" | "down"> {
   try {
@@ -27,8 +28,9 @@ export async function checkSite(site: Site): Promise<"up" | "down"> {
 }
 
 export async function checkAllSites(client: Client): Promise<void> {
-  const sites = loadSites();
   const now = new Date();
+  // Recharger les sites à chaque fois pour avoir les dernières données (uptime, etc.)
+  const sites = loadSites();
 
   for (const site of sites) {
     // Vérifier si on doit checker ce site maintenant
@@ -40,10 +42,17 @@ export async function checkAllSites(client: Client): Promise<void> {
     if (shouldCheck) {
       const status = await checkSite(site);
       const previousStatus = site.status;
+      const statusChanged = previousStatus && previousStatus !== status;
+      
+      // Mettre à jour le statut dans le fichier
       updateSiteStatus(site.alias, status);
 
+      // Mettre à jour le message de setup si il existe
+      // Passer true si le statut a changé pour déclencher les logs
+      await updateSetupMessage(client, site.alias, statusChanged);
+
       // Notifier si le statut a changé
-      if (previousStatus && previousStatus !== status) {
+      if (statusChanged) {
         await notifyStatusChange(site, status, client);
       }
     }
