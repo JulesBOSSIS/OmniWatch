@@ -7,8 +7,7 @@
  */
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
-import { db } from "../db";
-import { sites } from "../db/schema";
+import { pool } from "../db";
 import { addSite } from "../services/storage";
 
 interface SiteFromJson {
@@ -28,7 +27,8 @@ async function migrateSites() {
   if (!guildId) {
     console.error("❌ Erreur: Vous devez fournir un guildId en argument.");
     console.log("Usage: tsx src/scripts/migrate-sites.ts <guildId>");
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   const STORAGE_FILE = join(process.cwd(), "sites.json");
@@ -70,13 +70,14 @@ async function migrateSites() {
         });
         migrated++;
         console.log(`✅ Migré: ${site.alias}`);
-      } catch (error: any) {
-        if (error?.message?.includes("existe déjà")) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes("existe déjà")) {
           skipped++;
           console.log(`⏭️  Ignoré (déjà présent): ${site.alias}`);
         } else {
           errors++;
-          console.error(`❌ Erreur pour ${site.alias}:`, error.message);
+          console.error(`❌ Erreur pour ${site.alias}:`, errorMessage);
         }
       }
     }
@@ -87,17 +88,19 @@ async function migrateSites() {
     console.log(`❌ Erreurs: ${errors}`);
   } catch (error) {
     console.error("Erreur lors de la migration:", error);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
-migrateSites()
-  .then(() => {
+(async () => {
+  try {
+    await migrateSites();
     console.log("\nMigration terminée!");
-    process.exit(0);
-  })
-  .catch((error) => {
+  } catch (error) {
     console.error("Erreur fatale:", error);
-    process.exit(1);
-  });
+    process.exitCode = 1;
+  } finally {
+    await pool.end();
+  }
+})();
 

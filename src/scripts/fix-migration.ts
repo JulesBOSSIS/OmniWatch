@@ -3,7 +3,7 @@
  * Usage: npx tsx src/scripts/fix-migration.ts
  */
 import "dotenv/config";
-import { db } from "../db";
+import { db, pool } from "../db";
 import { sql } from "drizzle-orm";
 
 async function fixMigration() {
@@ -74,9 +74,10 @@ async function fixMigration() {
       console.log("\n⚠️  Certaines tables manquent. Veuillez appliquer la migration manuellement.");
       console.log("Vous pouvez exécuter: npx drizzle-kit push");
     }
-  } catch (error: any) {
-    console.error("Erreur:", error.message);
-    if (error.code === "42P01") {
+  } catch (error: unknown) {
+    const err = error as { message: string; code?: string };
+    console.error("Erreur:", err.message);
+    if (err.code === "42P01") {
       console.log("\nLa table __drizzle_migrations n'existe pas. Création...");
       try {
         await db.execute(
@@ -87,12 +88,12 @@ async function fixMigration() {
           )`
         );
         console.log("Table créée. Réessayez le script.");
-      } catch (createError: any) {
-        console.error("Erreur lors de la création:", createError.message);
+      } catch (createError: unknown) {
+        console.error("Erreur lors de la création:", (createError as Error).message);
       }
     }
   } finally {
-    process.exit(0);
+    await pool.end();
   }
 }
 

@@ -6,6 +6,10 @@
   "extends": [
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",
+    "plugin:import/recommended",
+    "plugin:import/typescript",
+    "plugin:n/recommended",
+    "plugin:promise/recommended",
     "prettier"
   ],
   "plugins": ["@typescript-eslint"],
@@ -14,12 +18,21 @@
     "ecmaVersion": "latest",
     "sourceType": "module"
   },
+  "settings": {
+    "import/resolver": {
+      "typescript": true,
+      "node": true
+    }
+  },
   "rules": {
     "semi": ["warn", "always"],
     "quotes": ["warn", "double"],
     "arrow-parens": ["warn", "always"],
     "no-unused-vars": "warn",
     "no-console": "off",
-    "import/prefer-default-export": "off"
+    "import/prefer-default-export": "off",
+    "n/no-missing-import": "off",
+    "n/no-unsupported-features/es-syntax": "off",
+    "n/no-unsupported-features/node-builtins": ["error", { "version": ">=18.0.0" }]
   }
 }

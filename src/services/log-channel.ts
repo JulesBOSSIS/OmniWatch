@@ -1,4 +1,4 @@
-import { Client, TextChannel, Guild, ChannelType, PermissionFlagsBits } from "discord.js";
+import { Client, TextChannel, Guild, ChannelType, PermissionFlagsBits, EmbedBuilder } from "discord.js";
 
 // Nom du channel de logs créé automatiquement dans chaque serveur
 const LOG_CHANNEL_NAME = "site-monitor-logs";
@@ -8,7 +8,7 @@ const LOG_CHANNEL_NAME = "site-monitor-logs";
  * Si le channel n'existe pas, on le crée avec les bonnes permissions
  * (seul le bot peut envoyer des messages dedans)
  */
-export async function getOrCreateLogChannel(
+async function getOrCreateLogChannel(
   client: Client,
   guild: Guild
 ): Promise<TextChannel | null> {
@@ -24,7 +24,8 @@ export async function getOrCreateLogChannel(
     // Si le channel n'existe pas, on le crée
     if (!logChannel) {
       // On vérifie que le bot a les permissions pour créer des channels
-      const botMember = await guild.members.fetch(client.user!.id);
+      if (!client.user) return null;
+      const botMember = await guild.members.fetch(client.user.id);
       if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels)) {
         console.warn(
           `Le bot n'a pas la permission de créer des channels dans le serveur ${guild.id}`
@@ -61,7 +62,7 @@ export async function getOrCreateLogChannel(
  */
 export async function sendLogToAllGuilds(
   client: Client,
-  embed: any
+  embed: EmbedBuilder
 ): Promise<void> {
   try {
     const guilds = await client.guilds.fetch();

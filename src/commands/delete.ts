@@ -1,44 +1,42 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
-import { removeSite } from "../services/storage";
+import { removeSite, getSite } from "../services/storage";
 
-/**
- * Commande pour supprimer un site de la surveillance
- * Le bot arrêtera de vérifier ce site après la suppression
- */
 export const data = new SlashCommandBuilder()
   .setName("delete")
   .setDescription("Supprime un site de la surveillance")
-  .addStringOption((option) =>
-    option
-      .setName("alias")
-      .setDescription("Alias du site à supprimer")
-      .setRequired(true)
-  );
+  .addStringOption((o) => o.setName("alias").setDescription("Alias du site").setRequired(true));
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  // On vérifie qu'on est bien dans un serveur (pas en MP)
-  if (!interaction.guildId) {
-    return interaction.reply({
-      content: "❌ Cette commande ne peut être utilisée que dans un serveur.",
-      ephemeral: true,
-    });
-  }
+  const { guildId } = interaction;
+  if (!guildId) return interaction.reply({ content: "❌ Serveur requis.", ephemeral: true });
 
   const alias = interaction.options.getString("alias", true);
+  
+  // On récupère les infos avant la suppression pour avoir l'ID du message
+  const site = await getSite(alias, guildId);
+  if (!site) {
+    return interaction.reply({ content: `❌ Alias **${alias}** introuvable.`, ephemeral: true });
+  }
 
-  // On supprime le site de la base de données
-  const deleted = await removeSite(alias, interaction.guildId);
+  // Suppression DB
+  const deleted = await removeSite(alias, guildId);
 
   if (deleted) {
-    return interaction.reply({
-      content: `✅ Site **${alias}** supprimé avec succès!`,
-      ephemeral: true,
-    });
-  } else {
-    return interaction.reply({
-      content: `❌ Aucun site trouvé avec l'alias **${alias}** dans ce serveur.`,
-      ephemeral: true,
-    });
-  }
-}
+    // Tentative de suppression du message de Dashboard si il existe
+    if (site.setupChannelId && site.setupMessageId) {
+      try {
+        const channel = await interaction.client.channels.fetch(site.setupChannelId);
+        if (channel?.isTextBased()) {
+          const message = await channel.messages.fetch(site.setupMessageId);
+          if (message) await message.delete();
+        }
+      } catch (e) {
+        console.error(`[Delete] Failed to delete dashboard message for ${alias}:`, e);
+      }
+    }
 
+    return interaction.reply({ content: `✅ Site **${alias}** supprimé.`, ephemeral: true });
+  }
+
+  return interaction.reply({ content: "❌ Erreur lors de la suppression.", ephemeral: true });
+}

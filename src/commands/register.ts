@@ -1,90 +1,61 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
 import { addSite } from "../services/storage";
 
-/**
- * Commande pour enregistrer un nouveau site à surveiller
- * Le bot va vérifier régulièrement si le site est en ligne ou pas
- */
 export const data = new SlashCommandBuilder()
   .setName("register")
   .setDescription("Enregistre un site web à surveiller")
-  .addStringOption((option) =>
-    option
-      .setName("url")
-      .setDescription("URL du site à surveiller (ex: https://example.com)")
-      .setRequired(true)
-  )
-  .addStringOption((option) =>
-    option
-      .setName("alias")
-      .setDescription("Alias pour identifier le site")
-      .setRequired(true)
-  )
-  .addStringOption((option) =>
-    option
-      .setName("test_url")
-      .setDescription("URL de test du site (ex: https://example.com/health)")
-      .setRequired(true)
-  )
-  .addIntegerOption((option) =>
-    option
-      .setName("uptime")
-      .setDescription("Intervalle de vérification en minutes (défaut: 5)")
-      .setMinValue(1)
-      .setMaxValue(1440) // Max 24h
-  );
+  .addStringOption((o) => o.setName("url").setDescription("URL du site").setRequired(true))
+  .addStringOption((o) => o.setName("alias").setDescription("Alias unique").setRequired(true))
+  .addStringOption((o) => o.setName("test_url").setDescription("URL de monitoring (optionnel)"))
+  .addStringOption((o) => o.setName("secret").setDescription("Secret pour l'API de monitoring"))
+  .addIntegerOption((o) => o.setName("uptime").setDescription("Intervalle (min)").setMinValue(1).setMaxValue(1440));
+
+function normalizeUrl(url: string): string {
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    return `https://${url}`;
+  }
+  return url;
+}
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  // On vérifie qu'on est bien dans un serveur (pas en MP)
-  if (!interaction.guildId) {
-    return interaction.reply({
-      content: "❌ Cette commande ne peut être utilisée que dans un serveur.",
-      ephemeral: true,
-    });
+  const { guildId } = interaction;
+  if (!guildId) {
+    return interaction.reply({ content: "❌ Serveur requis.", ephemeral: true });
   }
 
-  const url = interaction.options.getString("url", true);
+  let url = interaction.options.getString("url", true);
+  let testUrl = interaction.options.getString("test_url");
   const alias = interaction.options.getString("alias", true);
-  const testUrl = interaction.options.getString("test_url", true);
+  const secret = interaction.options.getString("secret");
   const uptimeInterval = interaction.options.getInteger("uptime") ?? 5;
 
-  // On vérifie que les URLs sont valides avant de les enregistrer
+  // Normalisation des URLs
+  url = normalizeUrl(url);
+  if (testUrl) testUrl = normalizeUrl(testUrl);
+
   try {
     new URL(url);
-    new URL(testUrl);
+    if (testUrl) new URL(testUrl);
   } catch {
-    return interaction.reply({
-      content: "❌ URL invalide. Veuillez fournir des URLs valides (ex: https://example.com)",
-      ephemeral: true,
-    });
+    return interaction.reply({ content: "❌ URL invalide.", ephemeral: true });
   }
 
   try {
-    // On sauvegarde le site dans la base de données
-    await addSite({
-      alias,
-      url,
-      testUrl,
-      guildId: interaction.guildId,
-      uptimeInterval,
+    await addSite({ 
+      alias, 
+      url, 
+      testUrl: testUrl ?? undefined, 
+      secret: secret ?? undefined, 
+      guildId, 
+      uptimeInterval 
     });
-
+    
     return interaction.reply({
-      content: `✅ Site **${alias}** enregistré avec succès!\n**URL:** ${url}\n**URL de test:** ${testUrl}\n**Intervalle de vérification:** ${uptimeInterval} minute(s)`,
+      content: `✅ Site **${alias}** enregistré !\n**URL:** ${url}${testUrl ? `\n**Test:** ${testUrl}` : ""}\n**Check:** ${uptimeInterval}m`,
       ephemeral: true,
     });
   } catch (error) {
-    // Si l'alias existe déjà, on affiche un message d'erreur clair
-    if (error instanceof Error) {
-      return interaction.reply({
-        content: `❌ Erreur: ${error.message}`,
-        ephemeral: true,
-      });
-    }
-    return interaction.reply({
-      content: "❌ Une erreur s'est produite lors de l'enregistrement du site.",
-      ephemeral: true,
-    });
+    const msg = error instanceof Error ? error.message : "Erreur inconnue";
+    return interaction.reply({ content: `❌ ${msg}`, ephemeral: true });
   }
 }
-

@@ -1,17 +1,14 @@
 {
-  "name": "discord-bot-template",
+  "name": "omniwatch",
   "version": "1.0.0",
-  "description": "A Discord bot boilerplate including TypeScript and ESLint.",
-  "author": {
-    "email": "fellipeutaka@gmail.com",
-    "name": "Fellipe Utaka"
-  },
+  "description": "Un bot Discord professionnel pour le monitoring de sites web et serveurs avec statistiques en temps réel.",
+  "author": "Elouan BONHOMME, Jules BOSSIS--GUYON, Maxime CURTIL",
   "license": "MIT",
   "private": true,
-  "homepage": "https://github.com/fellipeutaka/discord-bot-template",
+  "homepage": "https://github.com/JulesBOSSIS/projet_node",
   "repository": {
     "type": "git",
-    "url": "https://github.com/fellipeutaka/discord-bot-template.git"
+    "url": "https://github.com/JulesBOSSIS/projet_node.git"
   },
   "main": "dist/index.js",
   "scripts": {
@@ -19,7 +16,8 @@
     "start": "node .",
     "build": "tsup src/index.ts --minify",
     "format": "prettier --write \"**/*.{json,ts}\"",
-    "lint": "eslint . --ext ts --fix"
+    "lint": "eslint . --ext ts --fix",
+    "knip": "knip"
   },
   "dependencies": {
     "discord.js": "^14.7.1",
@@ -36,12 +34,14 @@
     "drizzle-kit": "^0.31.8",
     "eslint": "^8.33.0",
     "eslint-config-prettier": "^8.6.0",
+    "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "^2.25.2",
     "eslint-plugin-n": "^15.0.0",
     "eslint-plugin-promise": "^6.0.0",
+    "knip": "^5.83.0",
     "prettier": "^2.8.4",
     "tsup": "^6.6.0",
     "tsx": "^3.14.0",
-    "typescript": "^4.9.5"
+    "typescript": "^5.9.3"
   }
 }

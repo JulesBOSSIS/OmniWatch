@@ -1,7 +1,7 @@
 /**
  * Script pour vérifier l'état actuel de la base de données
  */
-import { db } from "../db";
+import { db, pool } from "../db";
 import { sql } from "drizzle-orm";
 
 async function checkDatabase() {
@@ -28,6 +28,7 @@ async function checkDatabase() {
       );
 
       console.log("\nColonnes de la table 'sites':");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       columns.rows.forEach((col: any) => {
         console.log(`  - ${col.column_name}: ${col.data_type} (nullable: ${col.is_nullable})`);
       });
@@ -41,6 +42,7 @@ async function checkDatabase() {
       );
 
       console.log("\nContraintes de la table 'sites':");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       constraints.rows.forEach((constraint: any) => {
         console.log(`  - ${constraint.constraint_name}: ${constraint.constraint_type}`);
       });
@@ -55,13 +57,15 @@ async function checkDatabase() {
     );
 
     console.log("\n\nToutes les tables dans la base de données:");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     allTables.rows.forEach((table: any) => {
       console.log(`  - ${table.table_name}`);
     });
   } catch (error) {
     console.error("Erreur lors de la vérification:", error);
+    process.exitCode = 1;
   } finally {
-    process.exit(0);
+    await pool.end();
   }
 }
 

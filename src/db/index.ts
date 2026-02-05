@@ -8,11 +8,11 @@ if (!process.env.DATABASE_URL) {
 }
 
 // On crée un pool de connexions PostgreSQL
-const pool = new Pool({
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
 // On crée l'instance Drizzle ORM avec le pool et le schéma
 export const db = drizzle(pool, { schema });
-export type Database = typeof db;
+
 

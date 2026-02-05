@@ -3,78 +3,79 @@ import { Client } from "discord.js";
 import { updateSetupMessage } from "./setup-message";
 
 /**
- * Vérifie si un site est en ligne ou pas
- * Utilise une requête HEAD pour être plus rapide (on ne télécharge pas tout le contenu)
- * Timeout de 10 secondes pour éviter d'attendre trop longtemps
+ * Perform a HEAD request to check site availability
  */
 export async function checkSite(site: Site): Promise<"up" | "down"> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000); // 10 secondes max
+    const timeout = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(site.url, {
-      method: "HEAD", // On utilise HEAD au lieu de GET pour être plus rapide
+      method: "HEAD",
       signal: controller.signal,
-      headers: {
-        "User-Agent": "Discord-Bot-Monitor/1.0",
-      },
+      headers: { "User-Agent": "Discord-Bot-Monitor/1.0" },
     });
 
     clearTimeout(timeout);
-
-    // Si le code de réponse est OK (200-299), le site est en ligne
-    if (response.ok) {
-      return "up";
-    } else {
-      return "down";
-    }
-  } catch (error) {
-    // En cas d'erreur (timeout, réseau, etc.), on considère le site comme hors ligne
+    return response.ok ? "up" : "down";
+  } catch {
     return "down";
   }
 }
 
 /**
- * Vérifie tous les sites qui doivent être vérifiés maintenant
- * Respecte l'intervalle de vérification défini pour chaque site
+ * Main check loop logic with retry resilience
  */
-export async function checkAllSites(client: Client): Promise<void> {
+async function checkAllSites(client: Client): Promise<void> {
   const now = new Date();
-  // On recharge les sites à chaque fois pour avoir les dernières données (au cas où l'intervalle aurait changé)
   const sites = await loadSites();
 
   for (const site of sites) {
-    // On vérifie si on doit checker ce site maintenant
-    // Soit il n'a jamais été vérifié, soit l'intervalle est écoulé
-    const shouldCheck =
-      !site.lastCheck ||
-      now.getTime() - site.lastCheck.getTime() >=
-      site.uptimeInterval * 60 * 1000; // Conversion minutes -> millisecondes
+    const shouldCheck = !site.lastCheck || 
+      now.getTime() - site.lastCheck.getTime() >= site.uptimeInterval * 60 * 1000;
 
-    if (shouldCheck) {
-      const status = await checkSite(site);
-      const previousStatus = site.status;
-      const statusChanged = previousStatus && previousStatus !== status;
+    if (!shouldCheck) continue;
+
+    const currentStatus = await checkSite(site);
+    
+    if (currentStatus === "up") {
+      // Site is UP
+      const statusChanged = site.status === "down";
       
-      // On met à jour le statut dans la base de données
-      await updateSiteStatus(site.alias, status, site.guildId);
-
-      // On met à jour le message de setup si il existe
-      // On passe true si le statut a changé pour déclencher les logs
+      // Reset failures and set status to UP
+      await updateSiteStatus(site.alias, "up", site.guildId, 0);
       await updateSetupMessage(client, site.alias, statusChanged, site.guildId);
 
-      // Si le statut a changé, on notifie dans le serveur
       if (statusChanged) {
-        await notifyStatusChange(site, status, client);
+        await notifyStatusChange(site, "up", client);
+      }
+    } else {
+      // Site is DOWN (potential)
+      const newFailures = site.consecutiveFailures + 1;
+      const threshold = 3;
+
+      if (newFailures >= threshold) {
+        // Confirmed DOWN
+        const statusChanged = site.status !== "down";
+        
+        await updateSiteStatus(site.alias, "down", site.guildId, newFailures);
+        await updateSetupMessage(client, site.alias, statusChanged, site.guildId);
+
+        if (statusChanged) {
+          await notifyStatusChange(site, "down", client);
+        }
+      } else {
+        // Soft failure (waiting for retries)
+        await updateSiteStatus(site.alias, site.status || "up", site.guildId, newFailures);
+        // We update the message to refresh "Last check" but without status change
+        await updateSetupMessage(client, site.alias, false, site.guildId);
+        
+        console.log(`[Monitor] ${site.alias} failing (${newFailures}/${threshold})...`);
       }
     }
   }
 }
 
-/**
- * Envoie une notification dans le serveur quand le statut d'un site change
- * Trouve le premier channel où le bot peut envoyer des messages
- */
 async function notifyStatusChange(
   site: Site,
   newStatus: "up" | "down",
@@ -82,47 +83,28 @@ async function notifyStatusChange(
 ): Promise<void> {
   try {
     const guild = await client.guilds.fetch(site.guildId);
-    if (!guild) {
-      return; // Le serveur n'existe plus ou le bot n'y est plus
-    }
+    if (!guild) return;
 
     const fullGuild = await guild.fetch();
-    // On cherche un channel texte où le bot peut envoyer des messages
-    const channels = fullGuild.channels.cache.filter(
-      (channel) =>
-        channel.isTextBased() &&
-        channel.permissionsFor(client.user!)?.has("SendMessages")
+    const channel = fullGuild.channels.cache.find(
+      (c) => c.isTextBased() && (client.user ? c.permissionsFor(client.user)?.has("SendMessages") : false)
     );
 
-    // On prend le premier channel trouvé
-    const channel = channels.first();
     if (channel && channel.isTextBased()) {
       const statusEmoji = newStatus === "up" ? "✅" : "❌";
-      const statusText = newStatus === "up" ? "en ligne" : "hors ligne";
       await channel.send({
-        content: `${statusEmoji} **${site.alias}** (${site.url}) est maintenant ${statusText}`,
+        content: `${statusEmoji} **${site.alias}** (${site.url}) est maintenant ${newStatus === "up" ? "en ligne" : "hors ligne"}`,
       });
     }
   } catch (error) {
-    console.error("Erreur lors de la notification de changement de statut:", error);
+    console.error("[Monitor] Notification failed:", error);
   }
 }
 
 /**
- * Démarre le monitoring des sites
- * Vérifie immédiatement au démarrage, puis toutes les X minutes
+ * Initializes the monitoring loop
  */
-export function startMonitoring(
-  client: Client,
-  intervalMinutes = 1
-): void {
-  // On vérifie immédiatement au démarrage pour avoir les statuts à jour
+export function startMonitoring(client: Client, intervalMinutes = 1): void {
   checkAllSites(client);
-
-  // Ensuite, on vérifie toutes les X minutes
-  // Note: même si on vérifie toutes les minutes, chaque site ne sera vérifié que si son intervalle est écoulé
-  setInterval(() => {
-    checkAllSites(client);
-  }, intervalMinutes * 60 * 1000);
+  setInterval(() => checkAllSites(client), intervalMinutes * 60 * 1000);
 }
-

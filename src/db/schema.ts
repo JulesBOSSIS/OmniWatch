@@ -7,10 +7,12 @@ import { integer, pgTable, varchar, timestamp, unique } from "drizzle-orm/pg-cor
 export const sites = pgTable("sites", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   url: varchar().notNull(), // URL du site à surveiller
-  testUrl: varchar("test_url").notNull(), // URL de test du site
+  testUrl: varchar("test_url"), // URL de test du site
+  secret: varchar("secret"), // Secret pour l'API de status
   alias: varchar().notNull(), // Nom court pour identifier le site
   guildId: varchar("guild_id").notNull(), // ID du serveur Discord
   uptimeInterval: integer("uptime_interval").notNull().default(5), // Intervalle de vérification en minutes
+  consecutiveFailures: integer("consecutive_failures").notNull().default(0), // Nombre d'échecs consécutifs
   status: varchar(), // Statut actuel : "up" ou "down"
   lastCheck: timestamp("last_check"), // Date de la dernière vérification
   lastStatusChange: timestamp("last_status_change"), // Date du dernier changement de statut

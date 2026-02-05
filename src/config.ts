@@ -1,7 +1,4 @@
-import dotenv from "dotenv";
-
-// On charge les variables d'environnement depuis le fichier .env
-dotenv.config();
+import "dotenv/config";
 
 const { DISCORD_TOKEN, DISCORD_CLIENT_ID } = process.env;
 
