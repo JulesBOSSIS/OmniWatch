@@ -2,6 +2,7 @@ import { Client } from "discord.js";
 import { config } from "./config";
 import { commands } from "./commands";
 import { deployCommands } from "./deploy-commands";
+import { startMonitoring } from "./services/monitor";
 
 export const client = new Client({
   intents: ["Guilds", "GuildMessages", "DirectMessages"],
@@ -15,6 +16,10 @@ client.once("ready", async () => {
   for (const guild of guilds.values()) {
     await deployCommands({ guildId: guild.id });
   }
+
+  // Démarrer le monitoring des sites
+  console.log("Starting website monitoring...");
+  startMonitoring(client, 1); // Vérifier toutes les minutes
 });
 
 client.on("guildCreate", async (guild) => {
