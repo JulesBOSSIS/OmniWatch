@@ -7,6 +7,7 @@ import { integer, pgTable, varchar, timestamp, unique } from "drizzle-orm/pg-cor
 export const sites = pgTable("sites", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   url: varchar().notNull(), // URL du site à surveiller
+  testUrl: varchar("test_url").notNull(), // URL de test du site
   alias: varchar().notNull(), // Nom court pour identifier le site
   guildId: varchar("guild_id").notNull(), // ID du serveur Discord
   uptimeInterval: integer("uptime_interval").notNull().default(5), // Intervalle de vérification en minutes

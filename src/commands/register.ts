@@ -20,6 +20,12 @@ export const data = new SlashCommandBuilder()
       .setDescription("Alias pour identifier le site")
       .setRequired(true)
   )
+  .addStringOption((option) =>
+    option
+      .setName("test_url")
+      .setDescription("URL de test du site (ex: https://example.com/health)")
+      .setRequired(true)
+  )
   .addIntegerOption((option) =>
     option
       .setName("uptime")
@@ -39,14 +45,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   const url = interaction.options.getString("url", true);
   const alias = interaction.options.getString("alias", true);
+  const testUrl = interaction.options.getString("test_url", true);
   const uptimeInterval = interaction.options.getInteger("uptime") ?? 5;
 
-  // On vérifie que l'URL est valide avant de l'enregistrer
+  // On vérifie que les URLs sont valides avant de les enregistrer
   try {
     new URL(url);
+    new URL(testUrl);
   } catch {
     return interaction.reply({
-      content: "❌ URL invalide. Veuillez fournir une URL valide (ex: https://example.com)",
+      content: "❌ URL invalide. Veuillez fournir des URLs valides (ex: https://example.com)",
       ephemeral: true,
     });
   }
@@ -56,12 +64,13 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     await addSite({
       alias,
       url,
+      testUrl,
       guildId: interaction.guildId,
       uptimeInterval,
     });
 
     return interaction.reply({
-      content: `✅ Site **${alias}** (${url}) enregistré avec succès!\nIntervalle de vérification: ${uptimeInterval} minute(s)`,
+      content: `✅ Site **${alias}** enregistré avec succès!\n**URL:** ${url}\n**URL de test:** ${testUrl}\n**Intervalle de vérification:** ${uptimeInterval} minute(s)`,
       ephemeral: true,
     });
   } catch (error) {

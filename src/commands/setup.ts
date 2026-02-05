@@ -49,6 +49,23 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     ephemeral: true,
   });
 
+  // On récupère les infos du système
+  let systemInfo = null;
+  try {
+    // On utilise testUrl s'il existe, sinon on utilise url
+    const baseUrl = site.testUrl;
+    console.log(baseUrl);
+    if (baseUrl) {
+      const statusUrl = `${baseUrl}`;
+      const response = await fetch(statusUrl);
+      if (response.ok) {
+        systemInfo = await response.json();
+      }
+    }
+  } catch (error) {
+    console.error("Erreur lors de la récupération des infos système:", error);
+  }
+
   // On crée les boutons pour les intervalles les plus courants (en minutes)
   const intervals = [1, 5, 10, 15, 30, 60, 120, 1440]; // 1440 = 24h
   const buttons: ButtonBuilder[] = intervals.map((interval) => {
@@ -104,6 +121,57 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     value: `${statusEmoji} ${statusText}`,
     inline: true,
   });
+
+  // On ajoute les infos du système si disponibles
+  if (systemInfo) {
+    // CPU
+    if (systemInfo.cpu) {
+      embed.addFields({
+        name: "🖥️ CPU",
+        value: `${systemInfo.cpu.load}${systemInfo.cpu.unit || "%"}`,
+      });
+    }
+
+    // RAM
+    if (systemInfo.ram) {
+      const ramPercent = systemInfo.ram.percent || "0";
+      embed.addFields({
+        name: "🧠 RAM",
+        value: `${systemInfo.ram.used}/${systemInfo.ram.total} ${systemInfo.ram.unit} (${ramPercent}%)`,
+        inline: true,
+      });
+    }
+
+    // Disks - On affiche les infos du disque racine
+    if (systemInfo.disks && systemInfo.disks.length > 0) {
+      const rootDisk = systemInfo.disks.find((d: any) => d.mount === "/") || systemInfo.disks[0];
+      embed.addFields({
+        name: "💾 Stockage",
+        value: `${rootDisk.used}/${rootDisk.size}\n(${rootDisk.use_percent} utilisé)`,
+        inline: true,
+      });
+    }
+
+    // Uptime
+    if (systemInfo.uptime) {
+      embed.addFields({
+        name: "⏱️ Uptime",
+        value: systemInfo.uptime.readable || systemInfo.uptime.seconds,
+        inline: true,
+      });
+    }
+
+    // SSL
+    if (systemInfo.ssl) {
+      const daysRemaining = systemInfo.ssl.days_remaining || 0;
+      const sslEmoji = daysRemaining > 30 ? "🔒" : daysRemaining > 7 ? "⚠️" : "🔴";
+      embed.addFields({
+        name: `${sslEmoji} SSL Certificate`,
+        value: `Issuer: ${systemInfo.ssl.issuer}\nExpire dans: ${daysRemaining} jours`,
+        inline: false,
+      });
+    }
+  }
 
   // On envoie le message dans le channel (pas éphémère, pour que tout le monde puisse le voir)
   const message = await interaction.channel?.send({

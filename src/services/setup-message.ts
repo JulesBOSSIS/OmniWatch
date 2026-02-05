@@ -105,14 +105,18 @@ export async function updateSetupMessage(
         rows.push(row);
       }
 
-      // On crée l'embed mis à jour avec les nouvelles infos
-      const embed = new EmbedBuilder()
-        .setTitle(`⚙️ Configuration de l'uptime - ${site.alias}`)
-        .setDescription(
-          `**URL:** ${site.url}\n**Intervalle actuel:** ${site.uptimeInterval} minute(s)\n\nCliquez sur un bouton pour mettre à jour l'intervalle de vérification.`
-        )
-        .setColor(0x5865f2) // Couleur Discord bleue
-        .setTimestamp();
+      // On récupère l'embed existant ou on en crée un nouveau
+      let embed = message.embeds[0] ? EmbedBuilder.from(message.embeds[0]) : new EmbedBuilder();
+      
+      // Si c'est un nouvel embed, on configure les infos de base
+      if (!message.embeds[0]) {
+        embed
+          .setTitle(`⚙️ Configuration de l'uptime - ${site.alias}`)
+          .setDescription(
+            `**URL:** ${site.url}\n**Intervalle actuel:** ${site.uptimeInterval} minute(s)\n\nCliquez sur un bouton pour mettre à jour l'intervalle de vérification.`
+          )
+          .setColor(0x5865f2); // Couleur Discord bleue
+      }
 
       const statusEmoji =
         site.status === "up" ? "✅" : site.status === "down" ? "❌" : "⏳";
@@ -128,6 +132,34 @@ export async function updateSetupMessage(
         ? `Dernière vérification: <t:${Math.floor(site.lastCheck.getTime() / 1000)}:R>`
         : "Aucune vérification effectuée";
 
+      // On met à jour seulement les fields qui changent (Statut actuel et Dernière vérification)
+      // On garde les autres fields (CPU, RAM, Stockage, etc.)
+      const existingFields = embed.data.fields || [];
+      
+      // On enlève seulement les fields Statut actuel, Dernière vérification et les champs système
+      const fieldsToKeep = existingFields.filter(
+        (f) =>
+          f.name !== "Statut actuel" &&
+          f.name !== "Dernière vérification" &&
+          !f.name.includes("🖥️ CPU") &&
+          !f.name.includes("🧠 RAM") &&
+          !f.name.includes("💾 Stockage") &&
+          !f.name.includes("⏱️ Uptime") &&
+          !f.name.includes("SSL Certificate")
+      );
+      
+      embed.spliceFields(0, embed.data.fields?.length || 0);
+      
+      // On ajoute d'abord les fields à garder
+      fieldsToKeep.forEach(f => {
+        embed.addFields({
+          name: f.name,
+          value: f.value,
+          inline: f.inline,
+        });
+      });
+      
+      // Ensuite on ajoute les fields qui changent
       embed.addFields(
         {
           name: "Statut actuel",
@@ -141,7 +173,78 @@ export async function updateSetupMessage(
         }
       );
 
-      // On met à jour le message avec le nouvel embed et les nouveaux boutons
+      // On récupère les infos du système si disponibles
+      let systemInfo = null;
+      try {
+        const baseUrl = site.testUrl || site.url;
+        if (baseUrl) {
+          const statusUrl = `${baseUrl}/api/status?secret=${process.env.STATUS_SECRET || "testlpmiaw"}`;
+          const response = await fetch(statusUrl);
+          if (response.ok) {
+            systemInfo = await response.json();
+          }
+        }
+      } catch (error) {
+        console.error("Erreur lors de la récupération des infos système:", error);
+      }
+
+      // On ajoute les infos du système seulement s'il n'y en a pas déjà
+      const hasSystemInfo = existingFields.some(f => 
+        ["🖥️ CPU", "🧠 RAM", "💾 Stockage", "⏱️ Uptime"].some(name => f.name.includes(name.split(" ")[0]))
+      );
+      
+      if (systemInfo && !hasSystemInfo) {
+        // CPU
+        if (systemInfo.cpu) {
+          embed.addFields({
+            name: "🖥️ CPU",
+            value: `${systemInfo.cpu.load}${systemInfo.cpu.unit || "%"}`,
+            inline: true,
+          });
+        }
+
+        // RAM
+        if (systemInfo.ram) {
+          const ramPercent = systemInfo.ram.percent || "0";
+          embed.addFields({
+            name: "🧠 RAM",
+            value: `${systemInfo.ram.used}/${systemInfo.ram.total} ${systemInfo.ram.unit} (${ramPercent}%)`,
+            inline: true,
+          });
+        }
+
+        // Disks
+        if (systemInfo.disks && systemInfo.disks.length > 0) {
+          const rootDisk = systemInfo.disks.find((d: any) => d.mount === "/") || systemInfo.disks[0];
+          embed.addFields({
+            name: "💾 Stockage",
+            value: `${rootDisk.used}/${rootDisk.size}\n(${rootDisk.use_percent} utilisé)`,
+            inline: true,
+          });
+        }
+
+        // Uptime
+        if (systemInfo.uptime) {
+          embed.addFields({
+            name: "⏱️ Uptime",
+            value: systemInfo.uptime.readable || systemInfo.uptime.seconds,
+            inline: true,
+          });
+        }
+
+        // SSL
+        if (systemInfo.ssl) {
+          const daysRemaining = systemInfo.ssl.days_remaining || 0;
+          const sslEmoji = daysRemaining > 30 ? "🔒" : daysRemaining > 7 ? "⚠️" : "🔴";
+          embed.addFields({
+            name: `${sslEmoji} SSL Certificate`,
+            value: `Issuer: ${systemInfo.ssl.issuer}\nExpire dans: ${daysRemaining} jours`,
+            inline: false,
+          });
+        }
+      }
+
+      // On met à jour le message avec l'embed modifié et les nouveaux boutons
       await message.edit({
         embeds: [embed],
         components: rows,

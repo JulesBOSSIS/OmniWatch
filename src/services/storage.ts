@@ -8,6 +8,7 @@ import { eq, and } from "drizzle-orm";
 export interface Site {
   alias: string; // Nom court pour identifier le site
   url: string; // URL complète du site
+  testUrl: string; // URL de test du site
   guildId: string; // ID du serveur Discord
   uptimeInterval: number; // Intervalle de vérification en minutes
   lastCheck?: Date; // Date de la dernière vérification
@@ -32,6 +33,7 @@ export async function loadSites(guildId?: string): Promise<Site[]> {
     return result.map((site) => ({
       alias: site.alias,
       url: site.url,
+      testUrl: site.testUrl,
       guildId: site.guildId,
       uptimeInterval: site.uptimeInterval ?? 5, // Par défaut 5 minutes
       lastCheck: site.lastCheck ? new Date(site.lastCheck) : undefined,
@@ -57,6 +59,7 @@ export async function addSite(site: Site): Promise<void> {
     await db.insert(sites).values({
       alias: site.alias,
       url: site.url,
+      testUrl: site.testUrl,
       guildId: site.guildId,
       uptimeInterval: site.uptimeInterval,
       status: site.status,
@@ -115,6 +118,7 @@ export async function getSite(alias: string, guildId: string): Promise<Site | un
     return {
       alias: site.alias,
       url: site.url,
+      testUrl: site.testUrl,
       guildId: site.guildId,
       uptimeInterval: site.uptimeInterval ?? 5,
       lastCheck: site.lastCheck ? new Date(site.lastCheck) : undefined,
