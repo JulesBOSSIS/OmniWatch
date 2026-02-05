@@ -8,6 +8,8 @@ export interface Site {
   lastCheck?: Date;
   status?: "up" | "down";
   lastStatusChange?: Date;
+  setupMessageId?: string;
+  setupChannelId?: string;
 }
 
 const STORAGE_FILE = join(process.cwd(), "sites.json");
@@ -86,5 +88,34 @@ export function updateSiteStatus(
   }
 
   saveSites(sites);
+}
+
+export function updateSiteUptime(alias: string, uptimeInterval: number): boolean {
+  const sites = loadSites();
+  const site = sites.find((s) => s.alias === alias);
+  if (!site) {
+    return false;
+  }
+
+  site.uptimeInterval = uptimeInterval;
+  saveSites(sites);
+  return true;
+}
+
+export function setSetupMessage(
+  alias: string,
+  messageId: string,
+  channelId: string
+): boolean {
+  const sites = loadSites();
+  const site = sites.find((s) => s.alias === alias);
+  if (!site) {
+    return false;
+  }
+
+  site.setupMessageId = messageId;
+  site.setupChannelId = channelId;
+  saveSites(sites);
+  return true;
 }
 
