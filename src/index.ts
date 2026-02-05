@@ -4,6 +4,11 @@ import { commands } from "./commands";
 import { deployCommands } from "./deploy-commands";
 import { startMonitoring } from "./services/monitor";
 
+// Make sure to install the 'pg' package 
+import { drizzle } from 'drizzle-orm/node-postgres';
+
+const db = drizzle(process.env.DATABASE_URL);
+
 export const client = new Client({
   intents: ["Guilds", "GuildMessages", "DirectMessages"],
 });
