@@ -8,6 +8,7 @@ interface SystemInfo {
   disks?: Array<{ mount: string; used: string; size: string; use_percent: string }>;
   uptime?: { readable: string; seconds: number };
   ssl?: { days_remaining: number; issuer?: string };
+  system?: { os: string; release: string; updatesAvailable: string };
 }
 
 /**
@@ -32,7 +33,7 @@ async function fetchSystemInfo(site: Site): Promise<SystemInfo | null> {
 export function generateSetupEmbed(site: Site, systemInfo: SystemInfo | null): EmbedBuilder {
   const isUp = site.status === "up";
   const lastCheck = site.lastCheck
-    ? `Vérifié <t:${Math.floor(site.lastCheck.getTime() / 1000)}:R>`
+    ? `<t:${Math.floor(site.lastCheck.getTime() / 1000)}:R>`
     : "Jamais vérifié";
 
   const statusDuration = site.lastStatusChange
@@ -49,7 +50,7 @@ export function generateSetupEmbed(site: Site, systemInfo: SystemInfo | null): E
 
   embed.addFields(
     { name: "Statut", value: `${isUp ? "✅" : site.status === "down" ? "❌" : "⏳"} ${isUp ? "En ligne" : site.status === "down" ? "Hors ligne" : "Non vérifié"}`, inline: true },
-    { name: "Depuis le", value: statusDuration, inline: true },
+    { name: "Depuis", value: statusDuration, inline: true },
     { name: "Dernière vérification", value: lastCheck, inline: true }
   );
 
@@ -67,10 +68,14 @@ export function generateSetupEmbed(site: Site, systemInfo: SystemInfo | null): E
     if (systemInfo.uptime) {
       embed.addFields({ name: "⏱️ Uptime", value: systemInfo.uptime.readable || String(systemInfo.uptime.seconds), inline: true });
     }
+    if (systemInfo.system) {
+      embed.addFields({ name: "🐧 Système", value: `${systemInfo.system.os} ${systemInfo.system.release}`, inline: true });
+      embed.addFields({ name: "📦 Mises à jour", value: `${systemInfo.system.updatesAvailable} disponible(s)`, inline: true });
+    }
     if (systemInfo.ssl) {
       const days = systemInfo.ssl.days_remaining || 0;
       const emoji = days > 30 ? "🔒" : days > 7 ? "⚠️" : "🔴";
-      embed.addFields({ name: `${emoji} SSL Certificate`, value: `Expire dans: ${days} jours`, inline: false });
+      embed.addFields({ name: `${emoji} SSL Certificate`, value: `Expire dans: ${days} jours`, inline: true });
     }
   }
 
