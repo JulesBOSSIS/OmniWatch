@@ -6,14 +6,14 @@ Un bot Discord professionnel écrit en TypeScript pour surveiller la disponibili
 
 - **Monitoring en Temps Réel** : Vérification cyclique de l'accessibilité HTTP (HEAD requests).
 - **Dashboard Dynamique** : Un tableau de bord qui se met à jour automatiquement avec l'historique de stabilité ("En ligne depuis...").
-- **Statistiques Système** : Intégration avec [**MonitoringInfo**](https://github.com/JulesBOSSIS/MonitoringInfo) pour récupérer le CPU, la RAM, le Stockage et l'état du certificat SSL.
+- **Statistiques Système** : Intégration avec [**MonitoringInfo**](https://github.com/akefis/MonitoringInfo) pour récupérer le CPU, la RAM, le Stockage et l'état du certificat SSL.
 - **Résilience (Auto-retry)** : Système intelligent qui attend 3 échecs consécutifs avant d'envoyer une alerte pour éviter les faux positifs.
 - **Gestion Interactive** : Modification des sites via des fenêtres surgissantes (Modals) Discord.
 - **Nettoyage Automatique** : Suppression intelligente des messages de dashboard lors de la désinscription d'un site.
 
 ## 📊 Monitoring de Serveur
 
-Pour afficher des statistiques détaillées, OmniWatch s'appuie sur [**MonitoringInfo**](https://github.com/JulesBOSSIS/MonitoringInfo), une API sécurisée à installer sur vos serveurs. Elle fournit des rapports détaillés (CPU, RAM, Disques, SSL) de manière sécurisée.
+Pour afficher des statistiques détaillées, OmniWatch s'appuie sur [**MonitoringInfo**](https://github.com/akefis/MonitoringInfo), une API sécurisée à installer sur vos serveurs. Elle fournit des rapports détaillés (CPU, RAM, Disques, SSL) de manière sécurisée.
 
 ## 🛠️ Commandes Slash
 
