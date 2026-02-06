@@ -110,12 +110,13 @@ client.on("interactionCreate", async (interaction) => {
         return interaction.reply({ content: "❌ L'intervalle doit être un nombre positif.", ephemeral: true });
       }
 
-      testUrl = normalizeUrl(testUrl);
-
-      try {
-        new URL(testUrl);
-      } catch {
-        return interaction.reply({ content: "❌ URL de monitoring invalide.", ephemeral: true });
+      if (testUrl) {
+        testUrl = normalizeUrl(testUrl);
+        try {
+          new URL(testUrl);
+        } catch {
+          return interaction.reply({ content: "❌ URL de monitoring invalide.", ephemeral: true });
+        }
       }
 
       try {
@@ -123,7 +124,7 @@ client.on("interactionCreate", async (interaction) => {
 
         const success = await updateSiteInfo(originalAlias, guildId, {
           newAlias: newAlias !== originalAlias ? newAlias : undefined,
-          testUrl,
+          testUrl: testUrl || null,
           uptimeInterval: uptime,
           secret: secret || ""
         });

@@ -219,6 +219,22 @@ export async function setSetupMessage(
   }
 }
 
+export async function clearSetupMessage(
+  alias: string,
+  guildId: string
+): Promise<boolean> {
+  try {
+    await db
+      .update(sites)
+      .set({ setupMessageId: null, setupChannelId: null })
+      .where(and(eq(sites.alias, alias), eq(sites.guildId, guildId)));
+    return true;
+  } catch (error) {
+    console.error("[Storage] Clear setup message failed:", error);
+    return false;
+  }
+}
+
 export async function updateSiteInfo(
   currentAlias: string,
   guildId: string,

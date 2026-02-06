@@ -1,5 +1,5 @@
-import { Client, EmbedBuilder } from "discord.js";
-import { getSite, Site } from "./storage";
+import { Client, EmbedBuilder, DiscordAPIError } from "discord.js";
+import { getSite, Site, clearSetupMessage } from "./storage";
 import { sendLogToAllGuilds } from "./log-channel";
 
 interface SystemInfo {
@@ -128,7 +128,12 @@ export async function updateSetupMessage(
 
       await message.edit({ embeds: [embed] });
     } catch (e) {
-      console.error(`[Setup] Update failed for ${alias}:`, e);
+      if (e instanceof DiscordAPIError && e.code === 10008) {
+        console.warn(`[Setup] Message ${site.setupMessageId} not found for ${site.alias}. Clearing IDs.`);
+        await clearSetupMessage(site.alias, site.guildId);
+      } else {
+        console.error(`[Setup] Update failed for ${site.alias}:`, e);
+      }
     }
   }
 }
